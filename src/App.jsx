@@ -1,122 +1,149 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-function App() {
-  const [count, setCount] = useState(0)
+// Auth Pages (Inside pages/auth folder)
+import Login from './pages/auth/Login';
+import SecretAdmin from './pages/auth/SecretAdmin';
 
+// Admin Dashboard, Academic Setup & Staff Creation (Inside creator/admin folder)
+import AdminDashboard from './creator/admin/AdminDashboard';
+import ManageCourses from './creator/admin/ManageCourses';
+import ManageStaff from './creator/admin/UserCreation'; 
+import CourseAssignments from './creator/admin/CourseAssignments';
+import SystemSettings from './creator/admin/SystemSettings';
+import StudentDetails from './creator/admin/StudentDetails';
+
+// --- NEW IMPORTS ---
+import AdministrativeTask from './creator/admin/AdministrativeTask';
+import DatabaseConfig from './creator/admin/DatabaseConfig';
+
+// Staff & Student Dashboards (Inside 'Staff creation' folder)
+import TeacherDashboard from './Staff creation/teacher/TeacherDashboard';
+import AccountantDashboard from './Staff creation/accountant/AccountantDashboard';
+import StudentDashboard from './Staff creation/student/StudentDashboard';
+
+// Components
+import ProtectedRoute from './components/ProtectedRoute';
+
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Login />} />
+        <Route path="/secret-cni-admin-99x" element={<SecretAdmin />} />
 
-      <div className="ticks"></div>
+        {/* --- FULLY SECURED PROTECTED ROUTES --- */}
+        
+        {/* Admin Dashboard */}
+        <Route 
+          path="/admin-dashboard" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {/* Academic Setup */}
+        <Route 
+          path="/academic-setup" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <ManageCourses />
+            </ProtectedRoute>
+          } 
+        />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {/* Staff Management */}
+        <Route 
+          path="/staff-management" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <ManageStaff />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Course Assignments */}
+        <Route 
+          path="/course-assignments" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <CourseAssignments />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Student Details */}
+        <Route 
+          path="/student-details" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <StudentDetails />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* --- NEW: Administrative Task --- */}
+        <Route 
+          path="/administrative-task" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <AdministrativeTask />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* --- NEW: Database Config --- */}
+        <Route 
+          path="/database-config" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <DatabaseConfig />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* System Settings */}
+        <Route 
+          path="/system-settings" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <SystemSettings />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Teacher Route */}
+        <Route 
+          path="/teacher-dashboard" 
+          element={
+            <ProtectedRoute allowedRole="teacher">
+              <TeacherDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Accountant Route */}
+        <Route 
+          path="/accountant-dashboard" 
+          element={
+            <ProtectedRoute allowedRole="accountant">
+              <AccountantDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Student Route */}
+        <Route 
+          path="/student-dashboard" 
+          element={
+            <ProtectedRoute allowedRole="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          } 
+        />
+      </Routes>
+    </Router>
+  );
 }
-
-export default App
