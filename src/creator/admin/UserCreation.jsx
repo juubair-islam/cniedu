@@ -11,7 +11,7 @@ import { auth, db } from '../../firebase';
 import { 
   LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, 
   Menu, X, Search, AlertTriangle, Trash2, Edit, ShieldCheck, Layers, 
-  ToggleLeft, ToggleRight, Clock, Database, Briefcase
+  ToggleLeft, ToggleRight, Clock, Database, Briefcase, ArrowRightLeft
 } from 'lucide-react';
 
 export default function ManageStaff() {
@@ -281,17 +281,24 @@ export default function ManageStaff() {
   };
 
   // --- NAVIGATION ARRAY ---
-  const navItems = [
+const navItems = [
+    // Group 1: Core Operations
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/admin-dashboard' },
-    { id: 'academic', name: 'Academic Setup', icon: <BookOpen size={20} />, path: '/academic-setup' },
-    { id: 'staff', name: 'Staff Management', icon: <UserPlus size={20} />, path: '/staff-management' },
     { id: 'students', name: 'Student Details', icon: <Search size={20} />, path: '/student-details' },
+    { id: 'staff', name: 'Staff Management', icon: <UserPlus size={20} />, path: '/staff-management' },
     { id: 'assignments', name: 'Course Assignments', icon: <Layers size={20} />, path: '/course-assignments' },
-    { id: 'database', name: 'Database Config', icon: <Database size={20} />, path: '/database-config' },
+    
+    // Group 2: Academic & Admin Control
+    { id: 'migration', name: 'Academic Migration', icon: <ArrowRightLeft size={20} />, path: '/academic-migration' },
+    { id: 'academic', name: 'Academic Setup', icon: <BookOpen size={20} />, path: '/academic-setup' },
     { id: 'adminTask', name: 'Administrative Task', icon: <Briefcase size={20} />, path: '/administrative-task' },
+    
+    // Group 3: System & Security
+    { id: 'userManagement', name: 'User Management', icon: <Users size={20} />, path: '/user-management' },
+    { id: 'database', name: 'Database Config', icon: <Database size={20} />, path: '/database-config' },
     { id: 'settings', name: 'System Settings', icon: <Settings size={20} />, path: '/system-settings' }
   ];
-
+  
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans text-slate-800 relative">
       

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, onAuthStateChanged, updatePassword } from 'firebase/auth';
 import { 
@@ -7,7 +7,7 @@ import {
 import { auth, db } from '../../firebase';
 import { 
   LayoutDashboard, LogOut, Menu, X, Users, Search, DollarSign, FileCheck, 
-  AlertTriangle, CheckCircle, Trash2, Printer, Lock, CalendarOff, Settings, Info, CreditCard, PieChart, Activity, Clock, Briefcase
+  AlertTriangle, CheckCircle, Trash2, Printer, Lock, CalendarOff, Settings, Info, CreditCard, PieChart, Activity, Clock, Briefcase, HelpCircle, BookOpen, GraduationCap
 } from 'lucide-react';
 
 export default function AccountantDashboard() {
@@ -76,6 +76,64 @@ export default function AccountantDashboard() {
     const due = (studentFinances.totalCourseFee || 0) - totalCourseFeesPaid;
     return due > 0 ? due : 0;
   }, [studentFinances, totalCourseFeesPaid]);
+
+
+
+
+
+
+  // --- SMART PREVIOUS PAGE NAVIGATION ---
+  const tabHistory = useRef(['home']);
+  const isBackNavigation = useRef(false);
+
+  useEffect(() => {
+    if (isBackNavigation.current) {
+      isBackNavigation.current = false;
+      return;
+    }
+    if (tabHistory.current[tabHistory.current.length - 1] !== activeTab) {
+      tabHistory.current.push(activeTab);
+      window.history.pushState(null, null, window.location.pathname);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    window.history.pushState(null, null, window.location.pathname);
+
+    const handleBackButton = () => {
+      if (tabHistory.current.length > 1) {
+        tabHistory.current.pop(); 
+        const prevTab = tabHistory.current[tabHistory.current.length - 1]; 
+        isBackNavigation.current = true;
+        setActiveTab(prevTab);
+        
+        try { 
+          setSelectedStudent(null); 
+          setSelectedBatchId('');
+        } catch (e) {}
+
+      } else {
+        window.history.pushState(null, null, window.location.pathname);
+        setUiDialog({
+          isOpen: true,
+          title: "Exit Confirmation",
+          desc: "You are at the home screen. Do you want to securely log out of the portal?",
+          type: "confirm",
+          onConfirm: async () => {
+            await signOut(auth);
+            navigate('/');
+          }
+        });
+      }
+    };
+
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, [navigate]);
+
+
+
+
 
   // --- SAFE DATA STREAM INITIALIZATION ---
   useEffect(() => {
@@ -490,7 +548,8 @@ export default function AccountantDashboard() {
     { id: 'clearance', name: 'Exam Clearances', icon: <FileCheck size={20} /> },
     { id: 'reports', name: 'Batch Reports', icon: <PieChart size={20} /> },
     { id: 'leaves', name: 'Leave Management', icon: <CalendarOff size={20} /> },
-    { id: 'settings', name: 'Security', icon: <Settings size={20} /> }
+    { id: 'settings', name: 'Security', icon: <Settings size={20} /> },
+    { id: 'guide', name: 'Help & Support', icon: <HelpCircle size={20} /> }
   ];
 
   return (
@@ -591,19 +650,40 @@ export default function AccountantDashboard() {
 
       {/* MAIN CONTAINER */}
       <div className="flex-1 flex flex-col overflow-hidden w-full print:bg-white print:overflow-visible">
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 shadow-sm print:hidden">
-          <div className="flex items-center space-x-3">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 rounded-lg md:hidden"><Menu size={20} /></button>
-            <h1 className="text-xl font-bold text-slate-900 sm:block hidden capitalize">{activeTab === 'profile' ? 'Management Window' : navItems.find(n => n.id === activeTab)?.name}</h1>
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-900">{accountantData.name}</p>
-              <p className="text-xs font-semibold text-emerald-600 uppercase">Accountant Profile</p>
+{/* Top Header */}
+        <header className="min-h-[80px] py-3 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 shadow-sm print:hidden">
+          <div className="flex items-center space-x-3 shrink-0">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg md:hidden transition-colors shrink-0">
+              <Menu size={20} />
+            </button>
+            <div className="hidden sm:block">
+              <h1 className="text-xl font-bold text-slate-900 capitalize">{activeTab === 'profile' ? 'Management Window' : navItems.find(n => n.id === activeTab)?.name}</h1>
             </div>
-            <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold">{accountantInitials}</div>
+          </div>
+
+          {/* Right Side: Profile Info (Flexible and Wrapping for Mobile) */}
+          <div className="flex items-center space-x-3 sm:space-x-4 justify-end flex-1 pl-3">
+            <div className="text-right flex flex-col items-end justify-center">
+              
+              {/* Full Name: Visible on ALL screens, wraps nicely if too long */}
+              <p className="text-sm font-bold text-slate-900 leading-tight mb-1 break-words text-right">
+                {accountantData.name}
+              </p>
+              
+              {/* Designation Badge */}
+              <p className="text-[10px] sm:text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider text-right shadow-sm sm:shadow-none">
+                Accountant Profile
+              </p>
+
+            </div>
+            
+            {/* Profile Avatar */}
+            <div className="w-10 h-10 bg-gradient-to-tr from-emerald-600 to-emerald-500 text-white rounded-xl flex items-center justify-center font-bold shadow-md text-sm border border-emerald-400 shrink-0">
+              {accountantInitials}
+            </div>
           </div>
         </header>
+
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 w-full print:p-0 print:overflow-visible">
           <div className="max-w-7xl mx-auto space-y-6">
@@ -800,7 +880,11 @@ export default function AccountantDashboard() {
                       </div>
                       
                       {!studentFinances.isFeeLocked ? (
-                        <button onClick={lockTotalFee} className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl mt-4 shadow-md transition-all">Lock & Save Master Fees</button>
+                        <button onClick={lockTotalFee} disabled={loading} className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl mt-4 shadow-md transition-all flex items-center justify-center disabled:opacity-75 disabled:cursor-not-allowed">
+                          {loading ? (
+                            <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white mr-2"></div> Processing...</>
+                          ) : "Lock & Save Master Fees"}
+                        </button>
                       ) : (
                         <div className="mt-4 p-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-bold flex items-center justify-center">
                           <CheckCircle size={16} className="mr-2"/> Master Fees Locked
@@ -832,7 +916,9 @@ export default function AccountantDashboard() {
                       <h3 className="font-bold text-sm text-slate-800 mb-3 flex items-center"><AlertTriangle size={16} className="mr-2 text-rose-600"/> Add Manual Fine</h3>
                       <div className="flex gap-2">
                         <input type="number" value={additionalFine} onChange={e => setAdditionalFine(e.target.value)} className="flex-1 bg-rose-50 border border-rose-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-rose-500 font-bold text-rose-700" placeholder="Amount" />
-                        <button onClick={applyAdditionalFine} disabled={loading} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-50">Apply Fine</button>
+                        <button onClick={applyAdditionalFine} disabled={loading} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-75 flex items-center justify-center min-w-[120px]">
+                          {loading ? <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div> : "Apply Fine"}
+                        </button>
                       </div>
                     </div>
 
@@ -867,8 +953,10 @@ export default function AccountantDashboard() {
                         </div>
                       </div>
                       
-                      <button onClick={processPayment} disabled={loading || !studentFinances.isFeeLocked} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl mt-6 shadow-md transition-all disabled:opacity-50">
-                        Record Payment
+                      <button onClick={processPayment} disabled={loading || !studentFinances.isFeeLocked} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl mt-6 shadow-md transition-all flex items-center justify-center disabled:opacity-75 disabled:cursor-not-allowed">
+                        {loading ? (
+                          <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white mr-2"></div> Recording...</>
+                        ) : "Record Payment"}
                       </button>
                     </div>
                   </div>
@@ -897,7 +985,7 @@ export default function AccountantDashboard() {
                               <td className="px-4 py-3 text-slate-500 text-xs">{pay.note || '-'}</td>
                               <td className="px-4 py-3 text-right font-bold text-slate-900">৳{pay.amount}</td>
                               <td className="px-4 py-3 text-center print-hidden">
-                                <button onClick={() => requestPaymentDeletion(pay)} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-all" title="Request Deletion Access">
+                                <button onClick={() => requestPaymentDeletion(pay)} disabled={loading} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-all disabled:opacity-50" title="Request Deletion Access">
                                   <Trash2 size={14}/>
                                 </button>
                               </td>
@@ -970,14 +1058,37 @@ export default function AccountantDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(() => {
-                            const facultySessions = attendanceData.filter(d => d.recordedBy === selectedTeacherId && d.date.startsWith(reportMonth)).sort((a,b) => a.timestamp - b.timestamp);
-                            if(facultySessions.length === 0) return <tr><td colSpan="6" className="p-6 text-center text-slate-500">No sessions recorded this month.</td></tr>;
-                            
-                            return facultySessions.map(session => {
-                              const d = new Date(session.timestamp);
-                              const fDate = `${d.getDate()}/${d.getMonth()+1} - ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+                            {(() => {
+                              const facultySessions = attendanceData.filter(d => d.recordedBy === selectedTeacherId && d.date.startsWith(reportMonth)).sort((a,b) => {
+                                // Sort safely by handling different timestamp formats
+                                const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || a.date).getTime();
+                                const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp || b.date).getTime();
+                                return timeA - timeB;
+                              });
+
+                              if(facultySessions.length === 0) return <tr><td colSpan="6" className="p-6 text-center text-slate-500">No sessions recorded this month.</td></tr>;
                               
+                              return facultySessions.map(session => {
+                              // ১. ডেট ও টাইম পার্সিং লজিক
+                              // updatedAt যদি থাকে সেটা ব্যবহার হবে, নাহলে session.date থেকে ডেট নেবে
+                              let d;
+                              if (session.updatedAt && session.updatedAt.toDate) {
+                                d = session.updatedAt.toDate(); // Firebase Timestamp
+                              } else {
+                                d = new Date(session.date); // Fallback to YYYY-MM-DD
+                              }
+
+                              // ২. প্রফেশনাল ফরম্যাটিং: "10 June - 07:53 PM"
+                              const day = d.getDate();
+                              const month = d.toLocaleString('en-GB', { month: 'long' });
+                              let hours = d.getHours();
+                              const minutes = d.getMinutes().toString().padStart(2, '0');
+                              const ampm = hours >= 12 ? 'PM' : 'AM';
+                              hours = hours % 12 || 12; // ১২ ঘণ্টার ফরম্যাট
+                              
+                              const fDate = `${day} ${month} - ${hours}:${minutes} ${ampm}`;
+
+                              // ৩. স্ট্যাটিস্টিক্স ক্যালকুলেশন
                               let total = 0, p = 0;
                               if(session.records) {
                                 total = Object.keys(session.records).length;
@@ -996,8 +1107,11 @@ export default function AccountantDashboard() {
                                 </tr>
                               );
                             });
-                          })()}
-                        </tbody>
+                            })()}
+                          </tbody>
+
+
+
                         <tfoot className="bg-slate-50 border-t border-slate-200 print:bg-slate-100">
                           <tr>
                             <td colSpan="3" className="p-3 text-right font-bold text-slate-800 uppercase text-xs">Total Valid Sessions Taken:</td>
@@ -1065,9 +1179,13 @@ export default function AccountantDashboard() {
                                   ) : (
                                     <div className="inline-flex flex-wrap justify-end gap-2">
                                       {fineDue > 0 && (
-                                        <button onClick={() => payFineFromClearance(student.id, fineDue)} disabled={loading} className="bg-emerald-600 text-white px-3 py-1 rounded font-bold hover:bg-emerald-700 disabled:opacity-50">Pay & Clear</button>
+                                        <button onClick={() => payFineFromClearance(student.id, fineDue)} disabled={loading} className="bg-emerald-600 text-white px-3 py-1 rounded font-bold hover:bg-emerald-700 disabled:opacity-75 flex items-center justify-center min-w-[100px]">
+                                          {loading ? <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-white"></div> : "Pay & Clear"}
+                                        </button>
                                       )}
-                                      <button onClick={() => grantManualClearance(student.id)} disabled={loading} className="bg-slate-900 text-white px-3 py-1 rounded font-bold hover:bg-slate-800 disabled:opacity-50">Override</button>
+                                      <button onClick={() => grantManualClearance(student.id)} disabled={loading} className="bg-slate-900 text-white px-3 py-1 rounded font-bold hover:bg-slate-800 disabled:opacity-75 flex items-center justify-center min-w-[80px]">
+                                        {loading ? <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-white"></div> : "Override"}
+                                      </button>
                                     </div>
                                   )}
                                 </td>
@@ -1179,7 +1297,11 @@ export default function AccountantDashboard() {
                           <p className="text-xs font-bold text-slate-500 text-center sm:text-left">Monthly Fine Processing Engine</p>
                           <div className="flex items-center space-x-2 w-full sm:w-auto">
                             <input type="number" value={reportFineRate} onChange={(e) => setReportFineRate(Number(e.target.value))} className="w-full sm:w-20 px-2 py-1 text-center bg-white border font-bold text-rose-600 rounded" />
-                            <button onClick={applyMonthlyFinesToBatch} disabled={loading} className="w-full sm:w-auto bg-rose-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap disabled:opacity-50">Apply Fine System</button>
+                            <button onClick={applyMonthlyFinesToBatch} disabled={loading} className="w-full sm:w-auto bg-rose-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap flex items-center justify-center disabled:opacity-75 disabled:cursor-not-allowed min-w-[140px]">
+                              {loading ? (
+                                <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white mr-1.5"></div> Applying...</>
+                              ) : "Apply Fine System"}
+                            </button>
                           </div>
                         </div>
                         <div className="overflow-x-auto w-full">
@@ -1333,8 +1455,12 @@ export default function AccountantDashboard() {
                             <p className="text-xs text-slate-600 mt-2 bg-slate-50 p-2.5 rounded border border-slate-200">" {leave.reason} "</p>
                           </div>
                           <div className="flex gap-2 w-full sm:w-auto">
-                            <button onClick={() => handleLeaveAction(leave.id, 'Approve')} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all">Approve</button>
-                            <button onClick={() => handleLeaveAction(leave.id, 'Reject')} className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all">Reject</button>
+                            <button onClick={() => handleLeaveAction(leave.id, 'Approve')} disabled={loading} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-75 flex justify-center items-center">
+                              {loading ? <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-white"></div> : "Approve"}
+                            </button>
+                            <button onClick={() => handleLeaveAction(leave.id, 'Reject')} disabled={loading} className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-75 flex justify-center items-center">
+                              {loading ? <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-white"></div> : "Reject"}
+                            </button>
                           </div>
                         </div>
                       )
@@ -1350,8 +1476,217 @@ export default function AccountantDashboard() {
                 <h3 className="font-bold text-sm uppercase tracking-wider mb-4">Update Terminal Integrity Passwords</h3>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <input type="password" required value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Minimum 6 alpha characters" className="w-full text-sm border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-                  <button type="submit" className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition-all">Execute Mutation Change</button>
+                 <button type="submit" disabled={loading} className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition-all disabled:opacity-75 flex justify-center items-center min-w-[180px]">
+                  {loading ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white mr-2"></div> Processing...</>
+                  ) : "Execute Mutation Change"}
+                </button>
                 </form>
+              </div>
+            )}
+
+
+
+            {/* --- TAB 9: HELP & SUPPORT (ACCOUNTANT MANUAL) --- */}
+            {activeTab === 'guide' && (
+              <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in pb-10 print:m-0 print:p-0">
+                
+                {/* Print Header */}
+                <div className="hidden print:block text-center mb-8 border-b-2 border-slate-900 pb-6">
+                  <h1 className="text-3xl font-bold uppercase tracking-widest text-slate-900">City Nursing Institute, Rangpur</h1>
+                  <h2 className="text-xl font-bold text-slate-700 mt-2">Official Accounts & Financial Operations Manual</h2>
+                  <p className="mt-2 text-sm font-medium text-slate-500">Comprehensive overview of financial operations, BNMC policies, and reporting protocols.</p>
+                </div>
+
+                {/* Web Header Banner */}
+                <div className="bg-gradient-to-r from-emerald-700 to-teal-800 p-8 rounded-3xl shadow-lg text-white relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-10 -mt-10 pointer-events-none"></div>
+                  <div className="relative z-10 flex items-center">
+                    <HelpCircle size={48} className="mr-5 text-emerald-100" /> 
+                    <div>
+                      <h2 className="text-3xl font-black mb-1">Accounts Operations Guide</h2>
+                      <p className="text-emerald-100 font-medium text-lg">Detailed instructions for financial ledgers, BNMC policies, and batch reporting.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => window.print()} className="relative z-10 flex items-center space-x-2 bg-white text-emerald-800 hover:bg-emerald-50 px-6 py-3 rounded-xl font-bold transition-all shadow-md shrink-0">
+                    <Printer size={20}/> <span>Print Manual</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6">
+
+                  {/* ==============================================================
+                      PART A: ACADEMIC POLICIES (BNMC)
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-4 flex items-center">
+                    <BookOpen className="mr-3 text-emerald-600"/> Part A: Academic & Institutional Policies
+                  </h3>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mr-4"><GraduationCap size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">1. BNMC Academic & Examination Guidelines</h3>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="leading-relaxed">As an authorized personnel of City Nursing Institute, you must be aware of the strict regulations set by the <span className="font-bold text-emerald-700">Bangladesh Nursing and Midwifery Council (BNMC)</span> for the <span className="font-bold text-slate-900">Diploma in Nursing Science & Midwifery</span> program:</p>
+                      <ul className="space-y-3">
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-rose-600">Mandatory Attendance (80%):</span> Students must maintain a strictly calculated minimum of <b>80% overall attendance</b>. The portal's Exam Clearance board automatically blocks students falling below this threshold.</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-emerald-600">Passing Criteria (60%):</span> The passing threshold for all theoretical and clinical assessments is strictly set at <b>60%</b>.</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-slate-800">Financial Clearance:</span> BNMC requires all institutional dues to be completely cleared before a student can receive their Admit Card for final board examinations.</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* ==============================================================
+                      PART B: FINANCIAL OPERATIONS
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-8 flex items-center">
+                    <DollarSign className="mr-3 text-emerald-600"/> Part B: Managing Student Financials
+                  </h3>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mr-4"><Lock size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">2. Locking Master Fees</h3>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="mb-3 leading-relaxed"><b>Navigation:</b> Left Menu ➔ <b className="text-emerald-700">Student Financials</b> ➔ Click <span className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded border border-emerald-100 font-bold text-[10px]">Manage Fees</span> next to a student.</p>
+                      
+                      <p>Before recording any payments for a new student, you must configure their <b>Master Fee Formulation</b>. This sets the financial baseline for their entire academic tenure.</p>
+                      <ul className="list-disc pl-5 space-y-2 mt-2">
+                        <li>Input the <b>Total Course Fee</b> and the <b>Admission Target</b>.</li>
+                        <li>Click <span className="bg-rose-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Lock & Save Master Fees</span>.</li>
+                      </ul>
+                      <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-lg text-xs font-bold flex items-center mt-3">
+                        <AlertTriangle size={16} className="mr-2 shrink-0"/> 
+                        CRITICAL: Once the Master Fee is locked, it becomes immutable to prevent tampering. Ensure the amount is absolutely correct.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-teal-500"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center mr-4"><CreditCard size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">3. Recording Daily Payments & Fines</h3>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="mb-2 leading-relaxed">All payments must be logged via the <b>Record New Payment</b> interface within the student's profile.</p>
+                      <ul className="space-y-3">
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-slate-900">Standard Payments:</span> Select the correct category (e.g., Monthly Course Fee, Hostel Fee) and input the exact amount. Then click <span className="bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold">Record Payment</span>.</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-rose-600">Fine Payments (Strict Rule):</span> The system strictly forbids partial fine payments. A student must pay the <span className="underline font-bold text-slate-900">exact outstanding fine amount</span> to clear their dues. The system automatically fetches this amount.</span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle size={16} className="text-emerald-500 mr-2 mt-0.5 shrink-0"/>
+                          <span><span className="font-bold text-amber-600">Manual Fines:</span> If a student breaks a disciplinary rule, you can manually assign a fine using the <span className="bg-rose-600 text-white px-2 py-1 rounded text-[10px] font-bold">Apply Fine</span> button.</span>
+                        </li>
+                        <li className="flex items-start">
+                          <AlertTriangle size={16} className="text-rose-500 mr-2 mt-0.5 shrink-0"/>
+                          <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 w-full">
+                            <span className="font-bold">Admin Dependency (Payment Deletion):</span> Accountants cannot independently delete payment logs once saved. You must click the trash icon <Trash2 size={12} className="inline"/> next to the payment, which will send a <b>Deletion Request</b> to the System Admin. The payment will only be deleted if the Admin approves it.
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* ==============================================================
+                      PART C: AUTOMATION & CLEARANCE
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-8 flex items-center">
+                    <Activity className="mr-3 text-indigo-600"/> Part C: System Automation & Clearances
+                  </h3>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid">
+                    <div className="space-y-6">
+                      
+                      {/* Automated Fines */}
+                      <div className="flex gap-4 items-start border-b border-slate-100 pb-5">
+                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0"><PieChart size={22}/></div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base mb-1.5">Batch Reports & Automated Fines</h4>
+                          <p className="text-sm text-slate-600 leading-relaxed mb-2"><b>Navigation:</b> Left Menu ➔ <b className="text-indigo-700">Batch Reports</b></p>
+                          <p className="text-sm text-slate-600 leading-relaxed">At the end of every month, you must execute the <b>Monthly Fine Processing Engine</b>. Input the fine rate (e.g., ৳100 per missed class), and click <span className="bg-rose-600 text-white px-2 py-1 rounded text-[10px] font-bold">Apply Fine System</span>. The system will automatically parse the attendance logs of the entire batch, multiplying the missed days by the fine rate, and injecting the fine into each student's ledger.</p>
+                          <p className="text-xs font-bold text-rose-500 mt-2">Rule: A student is marked "Absent" for a day ONLY if they miss the majority (more than 50%) of the classes held on that specific day.</p>
+                        </div>
+                      </div>
+
+                      {/* Exam Clearance */}
+                      <div className="flex gap-4 items-start border-b border-slate-100 pb-5">
+                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0"><FileCheck size={22}/></div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base mb-1.5">Exam Clearances & Admit Cards</h4>
+                          <p className="text-sm text-slate-600 leading-relaxed mb-2"><b>Navigation:</b> Left Menu ➔ <b className="text-emerald-700">Exam Clearances</b> ➔ Select Batch</p>
+                          <p className="text-sm text-slate-600 leading-relaxed">The system automatically clears students who maintain ≥ 80% attendance and have ৳0 fine dues. If a student is restricted due to fines, you can use the <span className="bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold">Pay & Clear</span> button to instantly process their fine and generate their Admit Card.</p>
+                          <div className="bg-slate-50 p-3 rounded-lg mt-2 border border-slate-200">
+                            <span className="text-xs font-bold text-slate-800 block mb-1">Admin Dependency (Clearance Override):</span>
+                            <span className="text-xs text-slate-600">If a student fails the 80% attendance mark, the Accountant can force-clear them using the <span className="bg-slate-900 text-white px-2 py-0.5 rounded">Override</span> button, but this action is permanently logged and visible to the System Admin for auditing.</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Leaves */}
+                      <div className="flex gap-4 items-start">
+                        <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0"><CalendarOff size={22}/></div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base mb-1.5">Leave Management</h4>
+                          <p className="text-sm text-slate-600 leading-relaxed mb-2"><b>Navigation:</b> Left Menu ➔ <b className="text-amber-700">Leave Management</b></p>
+                          <p className="text-sm text-slate-600 leading-relaxed">Review incoming leave applications from students. Use the <span className="bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold">Approve</span> or <span className="bg-rose-600 text-white px-2 py-1 rounded text-[10px] font-bold">Reject</span> buttons.</p>
+                          <p className="text-xs font-bold text-emerald-600 mt-2">Logic: Approving a leave automatically excuses the student from attendance tracking for those specific dates, preventing automated fine generation.</p>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* ==============================================================
+                      PART D: SECURITY & LOGOUT
+                  ============================================================== */}
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid print:shadow-none print:border-slate-400 mt-6">
+                    <div className="flex items-center mb-4">
+                      <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center mr-4 print:bg-transparent print:text-black print:border print:border-slate-800"><Settings size={24} /></div>
+                      <h3 className="text-2xl font-bold text-slate-900">4. System Integrity & Logout</h3>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-700 font-medium">
+                      <p className="mb-2 leading-relaxed"><b>Navigation:</b> Left Menu ➔ <b className="text-slate-800">Security</b></p>
+                      <p className="text-sm text-slate-600 mb-4">Use this page to update your terminal password. A strong password (min 6 characters) is required.</p>
+                      
+                      <div className="p-4 bg-rose-50 text-rose-800 rounded-xl border border-rose-100 text-sm print:bg-transparent print:border-slate-400 print:text-black">
+                        <p className="font-black text-rose-900 mb-1 print:text-black flex items-center"><LogOut size={16} className="mr-1.5"/> Critical Data Security Directive:</p>
+                        <p className="text-xs leading-relaxed">As an Accountant, you possess high-level access to the institution's financial ledgers. You must <b>never</b> leave this terminal unattended. Always click the <span className="font-bold text-rose-600 print:text-black">Logout</span> button at the bottom of the left navigation menu immediately after completing your tasks.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+                  {/* --- FULL SCREEN LOADING OVERLAY --- */}
+            {loading && (
+              <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 print:hidden">
+                <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"></div>
+                <div className="bg-white p-8 rounded-2xl shadow-2xl z-10 flex flex-col items-center animate-in zoom-in-95">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-emerald-600 mb-4"></div>
+                  <h2 className="text-xl font-bold text-slate-900">Processing Request...</h2>
+                  <p className="text-sm text-slate-500 font-medium mt-1">Please wait while securely saving to database</p>
+                </div>
               </div>
             )}
 

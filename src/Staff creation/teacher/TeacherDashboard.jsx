@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo,useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, onAuthStateChanged, updatePassword } from 'firebase/auth';
 import { 
@@ -8,7 +8,7 @@ import { auth, db } from '../../firebase';
 import { 
   LayoutDashboard, LogOut, Menu, X, BookOpen, CheckSquare, GraduationCap, 
   AlertTriangle, CheckCircle, CalendarDays, Save, Clock, Printer, Percent, ShieldAlert,
-  Settings, Send, Lock, Users, PlusCircle, Unlock, FileText, Check, Info
+  Settings, Send, Lock, Users, PlusCircle, Unlock, FileText, Check, Info, HelpCircle
 } from 'lucide-react';
 
 export default function TeacherDashboard() {
@@ -60,6 +60,64 @@ export default function TeacherDashboard() {
   const showMessage = (text, type) => { setMessage({ text, type }); setTimeout(() => setMessage({ text: '', type: '' }), 4000); };
   const getBatchName = (id) => batches.find(b => b.id === id)?.name || 'Unknown';
 
+
+// --- SMART PREVIOUS PAGE NAVIGATION ---
+  const tabHistory = useRef(['home']);
+  const isBackNavigation = useRef(false);
+
+  // যখনই নতুন ট্যাবে যাবে, হিস্ট্রি সেভ করবে
+  useEffect(() => {
+    if (isBackNavigation.current) {
+      isBackNavigation.current = false;
+      return;
+    }
+    if (tabHistory.current[tabHistory.current.length - 1] !== activeTab) {
+      tabHistory.current.push(activeTab);
+      window.history.pushState(null, null, window.location.pathname);
+    }
+  }, [activeTab]);
+
+  // ব্যাক বাটন চাপলে আগের পেজে যাওয়ার লজিক ও লগআউট পপআপ
+  useEffect(() => {
+    // শুরুতে একটা ডামি স্টেট পুশ করে রাখা হলো যেন ব্যাক বাটন কাজ করে
+    window.history.pushState(null, null, window.location.pathname);
+
+    const handleBackButton = () => {
+      if (tabHistory.current.length > 1) {
+        // যদি হিস্ট্রি থাকে, তবে আগের পেজে যাবে
+        tabHistory.current.pop(); 
+        const prevTab = tabHistory.current[tabHistory.current.length - 1]; 
+        isBackNavigation.current = true;
+        setActiveTab(prevTab);
+        
+        // যদি টিচার ড্যাশবোর্ড হয়, তবে সিলেক্ট করা কোর্স ক্লিয়ার করে দেবে (এরর এড়াতে try-catch)
+        try { setSelectedCourseId(''); } catch (e) {}
+
+      } else {
+        // একদম শেষে (Home) থাকলে লগইন পেজে যাওয়া আটকে দেবে
+        window.history.pushState(null, null, window.location.pathname);
+        
+        // সরাসরি স্টেট কল করে লগআউট পপআপ দেখানো হচ্ছে
+        setUiDialog({
+          isOpen: true,
+          title: "Exit Confirmation",
+          desc: "Do you want to log out from the portal?",
+          type: "confirm",
+          onConfirm: async () => {
+            await signOut(auth);
+            navigate('/');
+          }
+        });
+      }
+    };
+
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, [navigate]);
+
+  
+
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -86,9 +144,18 @@ export default function TeacherDashboard() {
     const unSubBatches = onSnapshot(query(collection(db, 'batches')), (snapshot) => { setBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); });
     const qStudents = query(collection(db, 'users'), where('role', '==', 'student'));
     const unSubStudents = onSnapshot(qStudents, (snapshot) => { setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); });
-    const qLeaves = query(collection(db, 'leaves'), where('date', '==', todayDate), where('status', '==', 'Approved'));
-    const unSubLeaves = onSnapshot(qLeaves, (snapshot) => { setApprovedLeaves(snapshot.docs.map(doc => doc.data().studentId)); });
-
+    // Smart Leave Checker: Checks if today falls between fromDate and toDate
+    const qLeaves = query(collection(db, 'leaves'), where('status', '==', 'Approved'));
+    const unSubLeaves = onSnapshot(qLeaves, (snapshot) => {
+      const leavesToday = [];
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (todayDate >= data.fromDate && todayDate <= data.toDate) {
+          leavesToday.push(data.studentId);
+        }
+      });
+      setApprovedLeaves(leavesToday);
+    });
     return () => { unsubscribeAuth(); unSubSettings(); unSubCourses(); unSubBatches(); unSubStudents(); unSubLeaves(); };
   }, [navigate, todayDate]);
 
@@ -110,12 +177,13 @@ export default function TeacherDashboard() {
         const snap = await getDoc(doc(db, 'attendance', `${todayDate}_${selectedCourseId}`));
         if (snap.exists()) {
           setAttendanceRecord(snap.data().records);
-          setAttendanceSubmittedToday(true);
+          setAttendanceSubmittedToday(true);  
         } else {
           setAttendanceSubmittedToday(false);
           const initialRecord = {};
           courseStudents.forEach(student => {
-            initialRecord[student.id] = approvedLeaves.includes(student.studentId) ? 'leave' : 'absent'; 
+            // student.id is the Firebase UID, which matches the studentId in the leaves database
+            initialRecord[student.id] = approvedLeaves.includes(student.id) ? 'leave' : 'absent'; 
           });
           setAttendanceRecord(initialRecord);
         }
@@ -343,7 +411,8 @@ export default function TeacherDashboard() {
     { id: 'home', name: 'Dashboard Home', icon: <LayoutDashboard size={20} /> },
     { id: 'attendance', name: 'Daily Attendance', icon: <CheckSquare size={20} /> },
     { id: 'exams', name: 'Exam & Marks', icon: <GraduationCap size={20} /> },
-    { id: 'settings', name: 'Settings & Support', icon: <Settings size={20} /> }
+    { id: 'settings', name: 'Settings & Support', icon: <Settings size={20} /> },
+    { id: 'guide', name: 'Help & Guide', icon: <HelpCircle size={20} /> }
   ];
 
   return (
@@ -464,24 +533,41 @@ export default function TeacherDashboard() {
       {/* MAIN WORKSPACE */}
       <div className={`flex-1 flex flex-col overflow-hidden w-full print:bg-white print:overflow-visible ${showAttReportModal ? 'print-hide-when-modal' : ''}`}>
         
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 shadow-sm print:hidden">
-          <div className="flex items-center space-x-3">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 rounded-lg md:hidden"><Menu size={20} /></button>
+{/* Top Header */}
+        <header className="min-h-[80px] py-3 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 shadow-sm print:hidden">
+          <div className="flex items-center space-x-3 shrink-0">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg md:hidden transition-colors shrink-0">
+              <Menu size={20} />
+            </button>
             <div className="hidden sm:block">
               <h1 className="text-2xl font-bold text-slate-900 capitalize">{navItems.find(n => n.id === activeTab)?.name}</h1>
               <p className="text-sm text-slate-500 font-medium">Manage your academic responsibilities</p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-900">{teacherData.name}</p>
-              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">{teacherData.designation}</p>
+
+          {/* Right Side: Profile Info (Flexible and Wrapping for Mobile) */}
+          <div className="flex items-center space-x-3 sm:space-x-4 justify-end flex-1 pl-3">
+            <div className="text-right flex flex-col items-end justify-center">
+              
+              {/* Full Name: Visible on ALL screens, wraps nicely if too long */}
+              <p className="text-sm font-bold text-slate-900 leading-tight mb-1 break-words text-right">
+                {teacherData.name}
+              </p>
+              
+              {/* Designation Badge */}
+              <p className="text-[10px] sm:text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded uppercase tracking-wider text-right shadow-sm sm:shadow-none">
+                {teacherData.designation}
+              </p>
+
             </div>
-            <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl flex items-center justify-center font-bold shadow-lg text-sm border border-indigo-400">
+            
+            {/* Profile Avatar */}
+            <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl flex items-center justify-center font-bold shadow-md text-sm border border-indigo-400 shrink-0">
               {teacherInitials}
             </div>
           </div>
         </header>
+
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 w-full print:p-0 print:overflow-visible">
           <div className="max-w-7xl mx-auto space-y-6">
@@ -577,54 +663,56 @@ export default function TeacherDashboard() {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto w-full">
-                      <table className="w-full text-left text-sm text-slate-600 print:text-xs">
-                        <thead className="bg-slate-900 text-white text-[10px] uppercase font-bold print:bg-slate-200 print:text-slate-900">
-                          <tr>
-                            <th className="px-6 py-4 print:border-slate-800">Student Name</th>
-                            <th className="px-6 py-4 text-center print:border-slate-800">Attendance</th>
-                            <th className="px-6 py-4 text-center border-l border-slate-700 print:border-slate-800">Attended / Total</th>
-                            <th className="px-6 py-4 text-center border-l border-slate-700 print:border-slate-800">Percentage</th>
-                          </tr> 
-                        </thead>
-                        <tbody>
-                          {courseStudents.map(student => {
-                            const status = attendanceRecord[student.id];
-                            const stats = getStudentAttStats(student.id);
-                            return (
-                              <tr key={student.id} className={`border-b border-slate-100 print:border-slate-800 ${status === 'leave' ? 'bg-amber-50/20' : 'hover:bg-slate-50'}`}>
-                                <td className="px-6 py-4 print:border-slate-800">
-                                  <p className="font-bold text-slate-900">{student.name}</p>
-                                  <p className="font-mono text-[10px] text-slate-500">ID: {student.studentId}</p>
-                                </td>
-                                <td className="px-6 py-4 text-center print:border-slate-800">
-                                  {status === 'leave' ? (
-                                    <span className="inline-flex items-center text-amber-600 font-bold text-xs"><Clock size={14} className="mr-1"/> On Leave</span>
-                                  ) : (
-                                    <label className="relative inline-flex items-center cursor-pointer print:hidden">
-                                      <input type="checkbox" disabled={attendanceSubmittedToday} checked={status === 'present'} onChange={(e) => handleAttendanceTick(student.id, e.target.checked)} className="sr-only peer" />
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${status === 'present' ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-2 border-slate-300 hover:border-indigo-400'} ${attendanceSubmittedToday ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                        {status === 'present' && <Check size={18} className="text-white"/>}
-                                      </div>
-                                    </label>
-                                  )}
-                                  <span className="hidden print:inline-block font-bold text-sm">{status === 'present' ? 'P' : status === 'absent' ? 'A' : 'L'}</span>
-                                </td>
-                                <td className="px-6 py-4 text-center font-bold text-slate-700 border-l border-slate-100 print:border-slate-800">
-                                  {stats.present} / {stats.totalClasses}
-                                </td>
-                                <td className="px-6 py-4 text-center border-l border-slate-100 print:border-slate-800">
-                                  <span className={`px-3 py-1 rounded-lg font-bold text-xs ${stats.perc >= 60 ? 'bg-emerald-100 text-emerald-700 print:bg-transparent print:text-black' : 'bg-rose-100 text-rose-700 print:bg-transparent print:text-black'}`}>
-                                    {stats.perc}%
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {courseStudents.length > 0 && !attendanceSubmittedToday && (
+
+<div className="w-full overflow-hidden">
+  <table className="w-full table-fixed text-left text-[10px] sm:text-sm text-slate-600 print:text-xs">
+    <thead className="bg-slate-900 text-white uppercase font-bold print:bg-slate-200 print:text-slate-900">
+      <tr>
+        <th className="w-[42%] px-2 py-3 truncate print:border-slate-800">Student Name</th>
+        <th className="w-[20%] px-1 py-3 text-center print:border-slate-800">Status</th>
+        <th className="w-[20%] px-1 py-3 text-center border-l border-slate-700 print:border-slate-800">Att/Tot</th>
+        <th className="w-[18%] px-1 py-3 text-center border-l border-slate-700 print:border-slate-800">%</th>
+      </tr>
+    </thead>
+    <tbody>
+      {courseStudents.map(student => {
+        const status = attendanceRecord[student.id];
+        const stats = getStudentAttStats(student.id);
+        return (
+          <tr key={student.id} className={`border-b border-slate-100 print:border-slate-800 ${status === 'leave' ? 'bg-amber-50/20' : 'hover:bg-slate-50'}`}>
+            <td className="px-2 py-3 truncate print:border-slate-800">
+              <p className="font-bold text-slate-900 truncate">{student.name}</p>
+              <p className="font-mono text-[9px] text-slate-500">ID: {student.studentId}</p>
+            </td>
+            <td className="px-1 py-3 text-center print:border-slate-800">
+              {status === 'leave' ? (
+                <span className="inline-flex items-center text-amber-600 font-bold text-[9px] sm:text-xs">
+                  <Clock size={12} className="mr-1 hidden sm:inline-block"/> Leave
+                </span>
+              ) : (
+                <label className="relative inline-flex items-center cursor-pointer print:hidden">
+                  <input type="checkbox" disabled={attendanceSubmittedToday} checked={status === 'present'} onChange={(e) => handleAttendanceTick(student.id, e.target.checked)} className="sr-only peer" />
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center transition-all ${status === 'present' ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-2 border-slate-300 hover:border-indigo-400'} ${attendanceSubmittedToday ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    {status === 'present' && <Check size={14} className="text-white"/>}
+                  </div>
+                </label>
+              )}
+              <span className="hidden print:inline-block font-bold text-sm">{status === 'present' ? 'P' : status === 'absent' ? 'A' : 'L'}</span>
+            </td>
+            <td className="px-1 py-3 text-center font-bold text-slate-700 border-l border-slate-100 print:border-slate-800">
+              {stats.present}/{stats.totalClasses}
+            </td>
+            <td className="px-1 py-3 text-center border-l border-slate-100 print:border-slate-800">
+              <span className={`px-1.5 py-1 rounded font-bold text-[9px] sm:text-xs ${stats.perc >= 60 ? 'bg-emerald-100 text-emerald-700 print:bg-transparent print:text-black' : 'bg-rose-100 text-rose-700 print:bg-transparent print:text-black'}`}>
+                {stats.perc}%
+              </span>
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</div>                    {courseStudents.length > 0 && !attendanceSubmittedToday && (
                       <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end print:hidden">
                         <button onClick={saveAttendance} disabled={loading} className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl shadow-md transition-all">
                           <Save size={18} /><span>Submit Today's Attendance</span>
@@ -800,6 +888,208 @@ export default function TeacherDashboard() {
               </div>
             )}
 
+
+
+
+{/* --- TAB 5: HELP & GUIDE (USER MANUAL) --- */}
+            {activeTab === 'guide' && (
+              <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in pb-10 print:m-0 print:p-0">
+                
+                {/* Print Header */}
+                <div className="hidden print:block text-center mb-8 border-b-2 border-slate-900 pb-6">
+                  <h1 className="text-3xl font-bold uppercase tracking-widest text-slate-900">City Nursing Institute, Rangpur</h1>
+                  <h2 className="text-xl font-bold text-slate-700 mt-2">Official Faculty Handbook & Portal Guide</h2>
+                  <p className="mt-2 text-sm font-medium text-slate-500">Comprehensive overview of institutional academic policies and faculty portal features.</p>
+                </div>
+
+                {/* Web Header Banner */}
+                <div className="bg-gradient-to-r from-teal-600 to-emerald-700 p-8 rounded-3xl shadow-lg text-white relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6 print:hidden">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-10 -mt-10 pointer-events-none"></div>
+                  <div className="relative z-10 flex items-center">
+                    <HelpCircle size={48} className="mr-5 text-teal-100" /> 
+                    <div>
+                      <h2 className="text-3xl font-black mb-1">Faculty Portal - Full User Guide</h2>
+                      <p className="text-teal-100 font-medium text-lg">Detailed instructions, operational policies, and system navigation.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => window.print()} className="relative z-10 flex items-center space-x-2 bg-white text-teal-700 hover:bg-teal-50 px-6 py-3 rounded-xl font-bold transition-all shadow-md shrink-0">
+                    <Printer size={20}/> <span>Print Manual</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6">
+
+                  {/* ==============================================================
+                      PART A: DAILY ACADEMIC OPERATIONS
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-4 flex items-center">
+                    <CheckSquare className="mr-3 text-emerald-600"/> Part A: Daily Attendance Protocol
+                  </h3>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mr-4"><CheckSquare size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">1. Recording Daily Attendance</h3>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="mb-3 leading-relaxed"><b>Page to visit:</b> Left Menu ➔ <b className="text-emerald-700">Daily Attendance</b></p>
+                      
+                      <div className="flex items-start">
+                        <div className="bg-slate-200 text-slate-700 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs mr-3 mt-0.5 shrink-0 print:border print:border-slate-800">1</div>
+                        <div><p>Use the <b>"Select Course"</b> dropdown at the top to choose the class you are currently teaching.</p></div>
+                      </div>
+                      
+                      <div className="flex items-start mt-4">
+                        <div className="bg-slate-200 text-slate-700 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs mr-3 mt-0.5 shrink-0 print:border print:border-slate-800">2</div>
+                        <div>
+                          <p className="mb-2">In the student list, mark attendance using the interactive checkboxes:</p>
+                          <ul className="list-disc pl-5 text-sm space-y-2">
+                            <li><span className="text-indigo-600 font-bold">Present:</span> Click the box to turn it blue with a white tick mark.</li>
+                            <li><span className="text-slate-500 font-bold">Absent:</span> Leave the box empty.</li>
+                            <li><span className="text-amber-600 font-bold">On Leave:</span> If a student has an Admin-approved leave, it will automatically show as <b>"Leave"</b>. You cannot override this.</li>
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start mt-4">
+                        <div className="bg-slate-200 text-slate-700 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs mr-3 mt-0.5 shrink-0 print:border print:border-slate-800">3</div>
+                        <div>
+                          <p>Scroll to the bottom of the list and click the button to finalize:</p>
+                          <div className="mt-3 inline-flex items-center bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md print:border print:border-slate-800 print:bg-transparent print:text-black print:shadow-none">
+                            <Save size={18} className="mr-2"/> Submit Today's Attendance
+                          </div>
+                          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-lg text-xs font-bold flex items-center mt-3">
+                            <AlertTriangle size={16} className="mr-2 shrink-0"/> 
+                            Warning: Clicking this button permanently locks the attendance roster for the day. You cannot edit it later.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ==============================================================
+                      PART B: EXAMINATIONS & MARKS
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-8 flex items-center">
+                    <GraduationCap className="mr-3 text-indigo-600"/> Part B: Examination & Grading System
+                  </h3>
+
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mr-4"><BookOpen size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">2. Entering & Managing Marks</h3>
+                    </div>
+                    
+                    <div className="space-y-6 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="mb-3 leading-relaxed"><b>Page to visit:</b> Left Menu ➔ <b className="text-indigo-700">Exam & Marks</b></p>
+                      
+                      <div className="bg-slate-900 p-5 rounded-xl text-white print:bg-transparent print:text-black print:border print:border-slate-300">
+                        <h4 className="font-bold text-lg mb-2 flex items-center"><Percent size={18} className="mr-2 text-indigo-400 print:text-black"/> Step A: Define Marks Distribution</h4>
+                        <p className="text-sm mb-4 text-slate-300 print:text-slate-700">Before entering marks, you must define the weightage percentage for Midterm, Final, Class Tests, and Assignments. The system will enforce that the total equals exactly 100%.</p>
+                      </div>
+
+                      <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 print:bg-transparent print:border-slate-300">
+                        <h4 className="font-bold text-lg mb-2 text-slate-900">Step B: Input Scores in Result Ledger</h4>
+                        <ul className="text-sm space-y-3 mb-5">
+                          <li>👉 To add multiple Class Test columns, click: <span className="inline-flex items-center border border-indigo-300 text-indigo-700 bg-white px-2 py-1 rounded-md text-xs font-bold mx-1"><PlusCircle size={12} className="mr-1"/> Add New Class Test</span></li>
+                          <li>👉 Input the scores for each student. The system will automatically compute the <b>Average CT Score</b>, <b>Weighted Total</b>, and assign a <b>Pass/Fail</b> grade based on the 60% BNMC threshold.</li>
+                        </ul>
+                        
+                        <h4 className="font-bold text-lg text-slate-800 mb-2 border-t border-slate-200 pt-4 mt-4">Step C: Lock & Publish</h4>
+                        <p className="text-sm mb-3">Once verified, scroll to the bottom of the ledger and click:</p>
+                        <div className="inline-flex items-center bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md print:border print:border-slate-800 print:text-black print:bg-transparent">
+                          <Save size={18} className="mr-2"/> Save Marks
+                        </div>
+                        <p className="text-rose-600 text-xs font-bold mt-3">⚠️ Warning: Saving marks will instantly publish them to the student portal and lock the input boxes permanently.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Fixing Mistakes */}
+                  <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:break-inside-avoid relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
+                    <div className="flex items-center mb-5">
+                      <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mr-4"><Unlock size={24} /></div>
+                      <h3 className="text-xl font-bold text-slate-900">3. Requesting Edit Access (Unlocking Marks)</h3>
+                    </div>
+                    
+                    <div className="space-y-4 text-sm text-slate-700 font-medium sm:ml-16">
+                      <p className="mb-2 leading-relaxed">If you entered incorrect marks and saved the ledger, the input fields will turn gray and become uneditable. To correct this, you must request permission from the System Admin.</p>
+                      
+                      <div className="bg-amber-50 p-5 rounded-xl border border-amber-100 print:bg-transparent print:border-slate-300">
+                        <p className="font-bold text-slate-800 mb-3">Just above the Result Ledger, click the appropriate unlock request button:</p>
+                        <div className="flex flex-wrap gap-3 mb-4">
+                          <div className="inline-flex items-center bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm print:border-slate-800 print:text-black">
+                            <Unlock size={16} className="mr-2"/> Request CT Edit
+                          </div>
+                          <div className="inline-flex items-center bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm print:border-slate-800 print:text-black">
+                            <Unlock size={16} className="mr-2"/> Request Final Edit
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed border-t border-amber-200/50 pt-3">This sends an automated alert to the Admin. <b>Once approved</b>, the specific columns will unlock, allowing you to edit and re-save the data.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ==============================================================
+                      PART C: SYSTEM SETTINGS & SUPPORT
+                  ============================================================== */}
+                  <h3 className="text-xl font-black text-slate-800 border-b-2 border-slate-200 pb-2 mt-8 flex items-center">
+                    <Settings className="mr-3 text-slate-600"/> Part C: System Settings & Reporting
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 print:break-inside-avoid">
+                    
+                    {/* Printing */}
+                    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-slate-400">
+                      <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center"><Printer size={20} className="mr-2 text-indigo-600 print:text-black"/> 4. Generating Print Reports</h3>
+                      <p className="text-sm text-slate-600 mb-5">The portal auto-formats complex matrices for A4 printing. No Excel export is required.</p>
+                      
+                      <div className="space-y-4 text-sm text-slate-700">
+                        <div>
+                          <p className="font-bold mb-1">📍 Print Attendance Roster:</p>
+                          <p className="text-xs text-slate-500 mb-2">Daily Attendance ➔ Select Course ➔ Click:</p>
+                          <div className="inline-flex items-center bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 print:border-slate-800 print:text-black print:bg-transparent mb-2">
+                            <FileText size={14} className="mr-1.5"/> View Full Report
+                          </div>
+                          <p className="text-xs">Then click <b className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Print Format</b>.</p>
+                        </div>
+                        <div className="pt-3 border-t border-slate-100 print:border-slate-300">
+                          <p className="font-bold mb-1">📍 Print Result Ledger:</p>
+                          <p className="text-xs text-slate-500 mb-2">Exam & Marks ➔ Select Course ➔ Click:</p>
+                          <div className="inline-flex items-center bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 print:border-slate-800 print:text-black print:bg-transparent">
+                            <Printer size={14} className="mr-1.5"/> Print Ledger
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Support Desk */}
+                    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-slate-400 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center"><Send size={20} className="mr-2 text-indigo-600 print:text-black"/> 5. Support & Security</h3>
+                        <p className="text-sm text-slate-600 mb-4"><b>Location:</b> Left Menu ➔ <b className="text-slate-800">Settings & Support</b></p>
+                        
+                        <p className="text-sm text-slate-700 mb-3">Use the <b>Support Desk</b> box to report technical issues directly to the System Admin.</p>
+                        <div className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm mb-6 print:border print:border-slate-800 print:text-black print:bg-transparent">
+                          Submit Support Ticket
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 bg-rose-50 text-rose-800 rounded-xl border border-rose-100 text-sm print:bg-transparent print:border-slate-400 print:text-black">
+                        <p className="font-black text-rose-900 mb-1 print:text-black flex items-center"><LogOut size={16} className="mr-1.5"/> Data Security Policy:</p>
+                        <p className="text-xs leading-relaxed">Always click the <span className="font-bold text-rose-600 print:text-black">Logout</span> button at the bottom of the menu before leaving the workstation to protect sensitive academic records.</p>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            )}
+            
+
           </div>
         </main>
       </div>
@@ -891,6 +1181,28 @@ export default function TeacherDashboard() {
           </div>
         </div>
       )}
+
+
+
+      
+
+
+
+
+      {/* --- FULL SCREEN LOADING OVERLAY --- */}
+      {loading && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 print:hidden">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"></div>
+          <div className="bg-white p-8 rounded-2xl shadow-2xl z-10 flex flex-col items-center animate-in zoom-in-95">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-indigo-600 mb-4"></div>
+            <h2 className="text-xl font-bold text-slate-900">Submitting...</h2>
+            <p className="text-sm text-slate-500 font-medium mt-1">Please wait while securely saving to database</p>
+          </div>
+        </div>
+      )}
+
+
+      
 
     </div>
   );

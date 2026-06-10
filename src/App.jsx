@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Auth Pages (Inside pages/auth folder)
 import Login from './pages/auth/Login';
 import SecretAdmin from './pages/auth/SecretAdmin';
+import ChangePassword from './pages/auth/ChangePassword';
 
 // Admin Dashboard, Academic Setup & Staff Creation (Inside creator/admin folder)
 import AdminDashboard from './creator/admin/AdminDashboard';
@@ -11,10 +12,12 @@ import ManageStaff from './creator/admin/UserCreation';
 import CourseAssignments from './creator/admin/CourseAssignments';
 import SystemSettings from './creator/admin/SystemSettings';
 import StudentDetails from './creator/admin/StudentDetails';
-
-// --- NEW IMPORTS ---
 import AdministrativeTask from './creator/admin/AdministrativeTask';
 import DatabaseConfig from './creator/admin/DatabaseConfig';
+import UserManagement from './creator/admin/UserManagement';
+
+// --- NEW IMPORT: Academic Migration ---
+import AcademicMigration from './creator/admin/AcademicMigration'; // ফাইলের পাথ তোমার ফোল্ডার স্ট্রাকচার অনুযায়ী মিলিয়ে নিও
 
 // Staff & Student Dashboards (Inside 'Staff creation' folder)
 import TeacherDashboard from './Staff creation/teacher/TeacherDashboard';
@@ -31,6 +34,7 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/" element={<Login />} />
         <Route path="/secret-cni-admin-99x" element={<SecretAdmin />} />
+        <Route path="/change-password" element={<ChangePassword />} />
 
         {/* --- FULLY SECURED PROTECTED ROUTES --- */}
         
@@ -84,7 +88,7 @@ export default function App() {
           } 
         />
 
-        {/* --- NEW: Administrative Task --- */}
+        {/* Administrative Task */}
         <Route 
           path="/administrative-task" 
           element={
@@ -94,7 +98,7 @@ export default function App() {
           } 
         />
 
-        {/* --- NEW: Database Config --- */}
+        {/* Database Config */}
         <Route 
           path="/database-config" 
           element={
@@ -110,6 +114,26 @@ export default function App() {
           element={
             <ProtectedRoute allowedRole="systemAdmin">
               <SystemSettings />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* User Management */}
+        <Route 
+          path="/user-management" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <UserManagement />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* --- NEW: Academic Migration --- */}
+        <Route 
+          path="/academic-migration" 
+          element={
+            <ProtectedRoute allowedRole="systemAdmin">
+              <AcademicMigration />
             </ProtectedRoute>
           } 
         />
@@ -143,6 +167,7 @@ export default function App() {
             </ProtectedRoute>
           } 
         />
+
       </Routes>
     </Router>
   );
